@@ -22,8 +22,7 @@ def support_samples(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarra
     The neighbor search is performed using a BallTree for optimal performance
     in high-dimensional spaces.
 
-    Parameters
-    ----------
+    Parameters:
     X : np.ndarray
         A 2D numpy array of shape (n_samples, n_features) containing the
         feature data.
@@ -31,8 +30,7 @@ def support_samples(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarra
         A 1D numpy array of shape (n_samples,) containing the integer class
         labels for each sample.
 
-    Returns
-    -------
+    Returns:
     tuple[np.ndarray, np.ndarray]
         A tuple containing two numpy arrays:
         - The first array is the subset of X corresponding to the selected
