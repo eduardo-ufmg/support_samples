@@ -98,7 +98,7 @@ def support_samples(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarra
     # The condition `num_different_neighbors > 0` is already guaranteed by Stage 1.
     final_selection_mask = heterogeneity_score < 0.5
     
-    final_indices = candidate_indices[final_selection_mask]
+    final_indices = candidate_indices[0][final_selection_mask]
 
     # Return the subset of data and labels corresponding to the final indices.
     return X[final_indices], y[final_indices]
