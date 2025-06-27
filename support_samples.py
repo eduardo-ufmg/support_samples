@@ -235,7 +235,7 @@ def gabriel_graph_bruteforce(
     A helper function to compute the inter-class Gabriel Graph vertices via a
     brute-force O(n^2 * log n) method. It checks every pair of points.
 
-    Args:
+    Parameters:
         X (np.ndarray): The matrix of points.
         y (np.ndarray): The array of labels.
         tree (cKDTree): A pre-computed KD-Tree on X for efficient queries.
@@ -289,7 +289,7 @@ def gabriel_graph(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
     scipy.spatial.Delaunay to find candidate edges and scipy.spatial.cKDTree
     for efficient geometric queries to filter for Gabriel edges.
 
-    Args:
+    Parameters:
         X (np.ndarray): A matrix of shape (n_points, n_dims) where each
                         row is a point and each column is a coordinate.
         y (np.ndarray): An array of shape (n_points,) containing the class
