@@ -227,154 +227,49 @@ def margin_clustering(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndar
     y_support = y[support_idx]
     return X_support, y_support
 
-
-def gabriel_graph_bruteforce(
-    X: np.ndarray, y: np.ndarray, tree: cKDTree
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    A helper function to compute the inter-class Gabriel Graph vertices via a
-    brute-force O(n^2 * log n) method. It checks every pair of points.
-
-    Parameters:
-        X (np.ndarray): The matrix of points.
-        y (np.ndarray): The array of labels.
-        tree (cKDTree): A pre-computed KD-Tree on X for efficient queries.
-
-    Returns:
-        The filtered points and their labels.
-    """
-    n_points, n_dims = X.shape
-    final_vertex_indices = set()
-
-    # Iterate over all unique pairs of points
-    for i, j in combinations(range(n_points), 2):
-        # Optimization: Check the cheaper inter-class condition first
-        if y[i] != y[j]:
-            # Verify the Gabriel property for the edge (i, j)
-            p_i, p_j = X[i], X[j]
-            midpoint = (p_i + p_j) / 2.0
-            radius = np.linalg.norm(p_i - midpoint)
-
-            # Query for points within the diametral sphere
-            points_in_sphere = tree.query_ball_point(midpoint, radius + 1e-9)
-
-            # If no point other than i or j is in the sphere, it's a Gabriel edge
-            is_gabriel = True
-            for k in points_in_sphere:
-                if k != i and k != j:
-                    is_gabriel = False
-                    break
-
-            if is_gabriel:
-                final_vertex_indices.add(i)
-                final_vertex_indices.add(j)
-
-    if not final_vertex_indices:
-        return np.empty((0, n_dims), dtype=X.dtype), np.empty(0, dtype=y.dtype)
-
-    indices = np.fromiter(
-        final_vertex_indices, dtype=int, count=len(final_vertex_indices)
-    )
-    indices.sort()
-
-    return X[indices], y[indices]
-
+import numpy as np
+from sklearn.neighbors import KDTree
 
 def gabriel_graph(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Computes the Gabriel Graph for a set of points, then extracts vertices
-    that belong to edges connecting points of different classes.
+    Extracts samples that are vertices of inter-class Gabriel edges.
 
-    This implementation prioritizes performance and memory efficiency. It uses
-    scipy.spatial.Delaunay to find candidate edges and scipy.spatial.cKDTree
-    for efficient geometric queries to filter for Gabriel edges.
+    This implementation prioritizes performance and memory efficiency:
+      - Only stores one KDTree plus a boolean mask of size n
+      - Skips same-class pairs before any geometry tests
+      - Uses squared distance arithmetic to minimize sqrt calls
 
     Parameters:
-        X (np.ndarray): A matrix of shape (n_points, n_dims) where each
-                        row is a point and each column is a coordinate.
-        y (np.ndarray): An array of shape (n_points,) containing the class
-                        label for each point.
+        X (np.ndarray): shape (n_points, n_dims)
+        y (np.ndarray): shape (n_points,)
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: A tuple containing two arrays:
-            - The first is a subset of X containing only the points that are
-              vertices of at least one inter-class Gabriel edge.
-            - The second is the corresponding subset of y.
+        X_sub, y_sub: only those points that touch at least one
+                      inter-class Gabriel edge.
     """
-    n_points, n_dims = X.shape
-    if n_points < 2:
-        return np.empty((0, n_dims), dtype=X.dtype), np.empty(0, dtype=y.dtype)
+    n, d = X.shape
+    tree = KDTree(X) # O(n) memory
+    mark = np.zeros(n, dtype=bool)
 
-    # For performance, Delaunay triangulation is used to generate a small
-    # superset of the Gabriel graph edges. This is much faster than checking
-    # all O(n^2) pairs, especially in low dimensions.
-    # The 'QJ' option tells qhull to jitter the input, which can help
-    # prevent precision issues with co-spherical or co-planar points.
-    try:
-        delaunay = Delaunay(X, qhull_options="QJ")
-    except Exception as e:
-        # Delaunay can fail in high dimensions or with degenerate data.
-        # Given the focus on performance, we do not include a slower fallback
-        # and instead notify the user of the failure.
-        warn(
-            f"Delaunay triangulation failed: {e}. "
-            "This can happen in high dimensions or with degenerate input data. "
-            "Falling back to a slower O(n^2 * log n) brute-force method.",
-            UserWarning,
-        )
-        tree = cKDTree(X)
-        return gabriel_graph_bruteforce(X, y, tree)
+    # Pre‐allocate a 1×d array for midpoints to avoid repeated allocation
+    mid = np.empty((1, d), dtype=X.dtype)
 
-    # Extract unique edges from the Delaunay simplices.
-    # Using a set of sorted tuples ensures each edge is represented once.
-    candidate_edges = set()
-    for simplex in delaunay.simplices:
-        for i, j in combinations(simplex, 2):
-            candidate_edges.add(tuple(sorted((i, j))))
+    for i in range(n):
+        xi, yi = X[i], y[i]
+        # Only consider j>i to avoid double count
+        for j in range(i + 1, n):
+            if yi == y[j]:
+                continue
+            # midpoint and radius
+            mid[0] = (xi + X[j]) * 0.5
+            # squared diameter / 4 = squared radius
+            r2 = np.dot(xi - X[j], xi - X[j]) * 0.25
+            # KDTree requires actual radius, so sqrt once
+            r = np.sqrt(r2)
+            # query_radius returns all points whose distance to mid ≤ r
+            idx = tree.query_radius(mid, r, return_distance=False)[0]
+            # if exactly the two endpoints lie in that ball → Gabriel edge
+            if idx.size == 2:
+                mark[i] = mark[j] = True
 
-    # A KD-Tree provides fast spatial searches, which we'll use to efficiently
-    # check the Gabriel graph condition for each candidate edge.
-    tree = cKDTree(X)
-
-    # This set will store the indices of vertices that we need to keep.
-    final_vertex_indices = set()
-
-    # Process each candidate edge.
-    for i, j in candidate_edges:
-        # Optimization: Check for inter-class connection first, as it's a cheap operation.
-        if y[i] != y[j]:
-            # The edge connects different classes. Now, verify the Gabriel property:
-            # The closed sphere with diameter (X[i], X[j]) must contain no other point from X.
-            p_i, p_j = X[i], X[j]
-            midpoint = (p_i + p_j) / 2.0
-            radius = np.linalg.norm(p_i - midpoint)
-
-            # Query for any points within the diametral sphere. The query_ball_point
-            # method checks for distances <= radius.
-            points_in_sphere = tree.query_ball_point(
-                midpoint, radius + 1e-9
-            )  # Add epsilon for float safety
-
-            # Check if any point other than i or j is in the sphere.
-            is_gabriel = True
-            for k in points_in_sphere:
-                if k != i and k != j:
-                    is_gabriel = False
-                    break
-
-            if is_gabriel:
-                # This edge is an inter-class Gabriel edge. Add its vertices to our final set.
-                final_vertex_indices.add(i)
-                final_vertex_indices.add(j)
-
-    if not final_vertex_indices:
-        return np.empty((0, n_dims), dtype=X.dtype), np.empty(0, dtype=y.dtype)
-
-    # Convert the set of indices to a sorted numpy array for slicing.
-    # np.fromiter is generally faster than list conversion for this task.
-    indices = np.fromiter(
-        final_vertex_indices, dtype=int, count=len(final_vertex_indices)
-    )
-    indices.sort()  # Sorting provides deterministic output.
-
-    return X[indices], y[indices]
+    return X[mark], y[mark]
