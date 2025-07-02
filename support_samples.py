@@ -94,7 +94,7 @@ def hnbf(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     # Use BallTree for efficient search in moderate-to-high dimensions.
     # Query for k+1 neighbors to account for the point itself being returned.
-    nn_model = NearestNeighbors(n_neighbors=k + 1, algorithm="ball_tree", n_jobs=-1)
+    nn_model = NearestNeighbors(n_neighbors=k + 1, algorithm="ball_tree")
     nn_model.fit(X)
     _, indices = nn_model.kneighbors(X)
 
