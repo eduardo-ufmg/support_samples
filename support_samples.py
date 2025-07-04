@@ -227,8 +227,10 @@ def margin_clustering(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndar
     y_support = y[support_idx]
     return X_support, y_support
 
+
 import numpy as np
 from sklearn.neighbors import KDTree
+
 
 def gabriel_graph(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -248,7 +250,7 @@ def gabriel_graph(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
                       inter-class Gabriel edge.
     """
     n, d = X.shape
-    tree = KDTree(X) # O(n) memory
+    tree = KDTree(X)  # O(n) memory
     mark = np.zeros(n, dtype=bool)
 
     # Pre‐allocate a 1×d array for midpoints to avoid repeated allocation
