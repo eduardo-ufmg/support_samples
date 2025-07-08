@@ -1,14 +1,10 @@
-from itertools import combinations
-from warnings import warn
-
 import numpy as np
-from scipy.spatial import Delaunay, cKDTree  # type: ignore
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
 
 
 def support_samples(
-    X: np.ndarray, y: np.ndarray, method: str = "hnbf"
+    X: np.ndarray, y: np.ndarray, method: str = "none"
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Select a compact set of boundary (support) samples from labeled data.
@@ -18,11 +14,12 @@ def support_samples(
         Feature array.
     y : np.ndarray, shape (n_samples,)
         Class labels for each row in X.
-    method : str, optional ['hnbf', 'margin_clustering', 'gabriel_graph']
+    method : str, optional ['hnbf', 'margin_clustering', 'gabriel_graph', 'none']
         Method to use for selecting support samples. Options are 'hnbf' for
         Heterogeneous-Neighborhood Boundary Filtering, 'margin_clustering'
-        for Margin Clustering method, and 'gabriel_graph' for Gabriel Graph method.
-        Default is 'hnbf'.
+        for Margin Clustering method, 'gabriel_graph' for Gabriel Graph method,
+        and 'none' for no support sample selection.
+        Default is 'none'.
 
     Returns:
     X_support : np.ndarray
@@ -36,6 +33,9 @@ def support_samples(
         return margin_clustering(X, y)
     elif method == "gabriel_graph":
         return gabriel_graph(X, y)
+    elif method == "none":
+        # If no method is specified, return the original data.
+        return X, y
     else:
         raise ValueError(f"Unknown method: {method}")
 
